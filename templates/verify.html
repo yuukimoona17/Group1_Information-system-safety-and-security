@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f510.svg">
+<meta charset="UTF-8">
+<title>Login - Step 2</title>
+<script src="https://cdn.jsdelivr.net/npm/jsrsasign@10.8.6/lib/jsrsasign-all-min.js"></script>
+<style>
+body{font-family:Arial;background:#f4f7fe;display:flex;align-items:center;justify-content:center;height:100vh;}
+.card{background:white;border-radius:16px;padding:30px;width:360px;text-align:center;box-shadow:0 0 15px rgba(0,0,0,0.1);}
+input{width:90%;padding:10px;margin:8px;border:1px solid #ccc;border-radius:8px;}
+button{background:#28a745;color:white;padding:10px 20px;border:none;border-radius:8px;cursor:pointer; margin-top: 10px; width: 95%;}
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>Verification - Step 2/2</h2>
+  
+  <div id="trusted-device-view" style="display: none;">
+      <p>Please confirm your identity using this trusted device.</p>
+      <button onclick="signAndVerify()">Confirm Signature</button>
+  </div>
+  
+  <div id="untrusted-device-view" style="display: none;">
+      <p>This is an unrecognized device. Please enter a recovery code to continue.</p>
+      <input id="rec-code" placeholder="Enter a recovery code"><br>
+      <button onclick="recoverAndSign()">Verify Recovery Code</button>
+  </div>
+
+  <p id="message" style="color:red; margin-top: 15px;"></p>
+</div>
+
+<script>
+const USERNAME = {{ username|tojson }};
+const CHALLENGE = {{ challenge|tojson }};
+const ENCRYPTED_KEYS = JSON.parse({{ encrypted_keys_json|tojson }});
+
+const msgEl = document.getElementById('message');
+
+window.onload = function() {
+    const privateKey = localStorage.getItem(`privateKey_${USERNAME}`);
+    if (privateKey) {
+        document.getElementById('trusted-device-view').style.display = 'block';
+    } else {
+        document.getElementById('untrusted-device-view').style.display = 'block';
+    }
+};
+
+async function signAndVerify() {
+    const privateKeyPEM = localStorage.getItem(`privateKey_${USERNAME}`);
+    if (!privateKeyPEM) {
+        msgEl.textContent = 'Error: Private key disappeared. Please start over.';
+        return;
+    }
+    
+    const signature = createSignature(privateKeyPEM, CHALLENGE);
+    await sendSignatureToServer(signature);
+}
+
+async function recoverAndSign() {
+    const recoveryCode = document.getElementById('rec-code').value.trim();
+    if (!recoveryCode) {
+        msgEl.textContent = 'Please enter a recovery code.';
+        return;
+    }
+
+    msgEl.textContent = 'Verifying code and generating key...';
+    let decryptedPrivateKey = null;
+
+    for (const encryptedKey of ENCRYPTED_KEYS) {
+        try {
+            const salt=b64ToBuf(encryptedKey.salt);
+            const iv=b64ToBuf(encryptedKey.iv);
+            const ct=b64ToBuf(encryptedKey.ciphertext);
+            const aesKey=await deriveKey(recoveryCode,salt);
+            const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv},aesKey,ct);
+            decryptedPrivateKey = new TextDecoder().decode(pt);
+            break; 
+        } catch (e) {}
+    }
+
+    if (!decryptedPrivateKey) {
+        msgEl.textContent = 'Invalid recovery code.';
+        return;
+    }
+
+    localStorage.setItem(`privateKey_${USERNAME}`, decryptedPrivateKey);
+    const signature = createSignature(decryptedPrivateKey, CHALLENGE);
+    await sendSignatureToServer(signature);
+}
+
+function createSignature(privateKeyPEM, challenge) {
+    const prv = KEYUTIL.getKey(privateKeyPEM);
+    const sig = new KJUR.crypto.Signature({"alg":"SHA256withRSA"});
+    sig.init(prv);
+    sig.updateString(challenge);
+    const signatureHex = sig.sign();
+    const rawSignature = signatureHex.match(/\w{2}/g).map(byte => String.fromCharCode(parseInt(byte, 16))).join('');
+    return btoa(rawSignature);
+}
+
+async function sendSignatureToServer(signatureB64) {
+    const vres=await fetch('/api/login-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signature:signatureB64})});
+    const vdata=await vres.json();
+
+    if(vres.ok && vdata.redirect_url){
+        msgEl.textContent = "✅ Verification successful! Redirecting...";
+        msgEl.style.color = 'green';
+        window.location.href = vdata.redirect_url;
+    } else {
+        msgEl.textContent = vdata.message;
+    }
+}
+
+function b64ToBuf(b64){const bin=atob(b64);return Uint8Array.from(bin,c=>c.charCodeAt(0));}
+async function deriveKey(recoveryCode,salt){
+  const enc=new TextEncoder();
+  const keyMaterial=await crypto.subtle.importKey('raw',enc.encode(recoveryCode),{name:'PBKDF2'},false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},keyMaterial,{name:'AES-GCM',length:256},true,['decrypt']);
+}
+</script>
+</body>
+</html>
