@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f510.svg">
+<meta charset="UTF-8">
+<title>Login - Step 1</title>
+<style>
+body{font-family:Arial;background:#f4f7fe;display:flex;align-items:center;justify-content:center;height:100vh;}
+.card{background:white;border-radius:16px;padding:30px;width:360px;text-align:center;box-shadow:0 0 15px rgba(0,0,0,0.1);}
+input{width:90%;padding:10px;margin:8px;border:1px solid #ccc;border-radius:8px;}
+button{background:#007bff;color:white;padding:10px 20px;border:none;border-radius:8px;cursor:pointer; margin-top: 10px; width: 95%;}
+.error { color: red; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>Login - Step 1/2</h2>
+  <form action="/login" method="post">
+      <input id="username" name="username" placeholder="Username" required><br>
+      <input id="password" name="password" type="password" placeholder="Password" required><br>
+      <button type="submit">Continue</button>
+  </form>
+  
+  {% if error %}
+    <p class="error">{{ error }}</p>
+  {% endif %}
+
+  <p style="margin-top: 20px;">Don’t have an account? <a href="/register">Register</a></p>
+</div>
+</body>
+</html>
