@@ -31,21 +31,17 @@ button{background:#28a745;color:white;padding:10px 20px;border:none;border-radiu
 </div>
 
 <script>
-// Lấy dữ liệu an toàn từ server đã render vào template
 const USERNAME = {{ username|tojson }};
 const CHALLENGE = {{ challenge|tojson }};
 const ENCRYPTED_KEYS = JSON.parse({{ encrypted_keys_json|tojson }});
 
 const msgEl = document.getElementById('message');
 
-// Hàm này sẽ chạy ngay khi trang được tải
 window.onload = function() {
     const privateKey = localStorage.getItem(`privateKey_${USERNAME}`);
     if (privateKey) {
-        // Nếu tìm thấy khóa -> thiết bị tin cậy
         document.getElementById('trusted-device-view').style.display = 'block';
     } else {
-        // Nếu không -> thiết bị lạ
         document.getElementById('untrusted-device-view').style.display = 'block';
     }
 };
@@ -57,7 +53,6 @@ async function signAndVerify() {
         return;
     }
     
-    // Tạo chữ ký từ private key có sẵn
     const signature = createSignature(privateKeyPEM, CHALLENGE);
     await sendSignatureToServer(signature);
 }
@@ -72,7 +67,6 @@ async function recoverAndSign() {
     msgEl.textContent = 'Verifying code and generating key...';
     let decryptedPrivateKey = null;
 
-    // Vòng lặp để thử giải mã bằng recovery code
     for (const encryptedKey of ENCRYPTED_KEYS) {
         try {
             const salt=b64ToBuf(encryptedKey.salt);
@@ -90,13 +84,11 @@ async function recoverAndSign() {
         return;
     }
 
-    // Nếu giải mã thành công, lưu khóa này lại và tạo chữ ký
     localStorage.setItem(`privateKey_${USERNAME}`, decryptedPrivateKey);
     const signature = createSignature(decryptedPrivateKey, CHALLENGE);
     await sendSignatureToServer(signature);
 }
 
-// === Các hàm phụ trợ ===
 function createSignature(privateKeyPEM, challenge) {
     const prv = KEYUTIL.getKey(privateKeyPEM);
     const sig = new KJUR.crypto.Signature({"alg":"SHA256withRSA"});

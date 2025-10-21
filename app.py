@@ -8,13 +8,11 @@ from Crypto.Hash import SHA256
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
-# --- Database Helper ---
 def get_db_connection():
     conn = sqlite3.connect('database.db')
     conn.row_factory = sqlite3.Row
     return conn
 
-# --- Page Routes ---
 @app.route('/')
 def home():
     return redirect(url_for('login'))
@@ -56,9 +54,6 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-# --- API Routes ---
-
-# ✅ THIS IS THE MISSING ROUTE
 @app.route('/api/register', methods=['POST'])
 def register_api():
     try:
@@ -115,6 +110,5 @@ def login_verify():
     except (ValueError, TypeError, Exception) as e:
         return jsonify({'status':'error','message':'Signature verification failed!'}), 401
 
-# --- Main Execution ---
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
