@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f510.svg">
+<meta charset="UTF-8">
+<title>Log in with QR Code</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+    body {font-family: 'Poppins', Arial, sans-serif; background: #f0f2f5; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;}
+    .card {background: #ffffff; border-radius: 12px; padding: 40px; width: 380px; text-align: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);}
+    h2 {margin-top: 0; color: #333; font-weight: 600;}
+    #qrcode { display: flex; justify-content: center; align-items: center; margin-top: 20px; }
+    p { color: #555; }
+    #status { font-weight: 500; margin-top: 20px; }
+    a { color: #007bff; font-size: 14px; text-decoration: none; font-weight: 500;}
+</style>
+</head>
+<body>
+<div class="card">
+    <h2>Log in with QR Code</h2>
+    <p>Scan this code with a trusted device to log in.</p>
+    <div id="qrcode"></div>
+    <p id="status" style="color: #007bff;">Waiting for scan...</p>
+    <p style="margin-top: 30px;"><a href="/login">Back to password login</a></p>
+</div>
+
+<script>
+    let qr_session_id = null;
+    let pollInterval = null;
+
+    // 1. Lấy challenge và tạo mã QR
+    async function getQrCode() {
+        const res = await fetch('/api/qr-challenge');
+        const data = await res.json();
+        
+        qr_session_id = data.qr_session_id;
+        const qrString = `${data.qr_session_id}:${data.challenge}`;
+        
+        // Tạo mã QR
+        const qr = qrcode(0, 'M');
+        qr.addData(qrString);
+        qr.make();
+        document.getElementById('qrcode').innerHTML = qr.createImgTag(6, 10);
+        
+        // 2. Bắt đầu "lắng nghe" server (polling)
+        pollInterval = setInterval(checkStatus, 2000);
+    }
+
+    // 3. "Lắng nghe" xem đã được quét chưa
+    async function checkStatus() {
+        if (!qr_session_id) return;
+        
+        const res = await fetch(`/api/qr-status/${qr_session_id}`);
+        const data = await res.json();
+        const statusEl = document.getElementById('status');
+        
+        if (data.status === 'success') {
+            clearInterval(pollInterval);
+            statusEl.textContent = '✅ Success! Finalizing login...';
+            statusEl.style.color = 'green';
+            await finalizeLogin();
+        } else if (data.status === 'expired') {
+            clearInterval(pollInterval);
+            statusEl.textContent = 'QR Code expired. Please refresh.';
+            statusEl.style.color = 'red';
+        }
+        // Nếu là 'pending', không làm gì cả, chờ lần poll tiếp theo
+    }
+
+    // 4. Hoàn tất đăng nhập khi server báo OK
+    async function finalizeLogin() {
+        const res = await fetch('/api/qr-finalize', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ qr_session_id: qr_session_id })
+        });
+        const data = await res.json();
+        if (data.status === 'success' && data.redirect_url) {
+            window.location.href = data.redirect_url;
+        } else {
+            document.getElementById('status').textContent = 'Login failed. Please try again.';
+            document.getElementById('status').style.color = 'red';
+        }
+    }
+
+    getQrCode();
+</script>
+</body>
+</html>

@@ -4,17 +4,62 @@
 <link rel="icon" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f510.svg">
 <meta charset="UTF-8">
 <title>Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-body{font-family:Arial;background:#f4f7fe;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;}
-.card{background:white;border-radius:16px;padding:40px;box-shadow:0 0 15px rgba(0,0,0,0.1);}
-a { background:#dc3545; color:white; padding:10px 20px; border-radius:8px; text-decoration:none; margin-top:20px; display:inline-block;}
+    body {font-family: 'Poppins', Arial, sans-serif; background: #f0f2f5; display: flex; align-items: center; justify-content: center; height: 100vh; text-align: center; margin: 0;}
+    .card {background: #ffffff; border-radius: 12px; padding: 40px; width: 500px; text-align: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);}
+    h1 {margin-top: 0; color: #333; font-weight: 600;}
+    p { color: #555; font-size: 18px; }
+    a { color: #007bff; font-size: 14px; text-decoration: none; font-weight: 500; transition: color 0.2s ease;}
+    a:hover {text-decoration: underline; color: #0056b3;}
+    .logout-btn { background: #dc3545; color: white; padding: 12px 20px; border-radius: 8px; text-decoration: none; margin-top: 20px; display: inline-block; font-size: 16px; font-weight: 500; border: none; cursor: pointer; transition: all 0.3s ease-out; box-shadow: 0 4px 15px rgba(220, 53, 69, 0.2);}
+    .logout-btn:hover {transform: translateY(-3px); box-shadow: 0 6px 20px rgba(220, 53, 69, 0.3);}
+    .logout-btn:active {transform: translateY(1px); box-shadow: 0 2px 10px rgba(220, 53, 69, 0.15);}
+    .profile-section { margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; }
+    .profile-info { margin: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; min-height: 40px; }
+    input {width: calc(80% - 24px); padding: 10px; border: 1px solid #ddd; border-radius: 8px;}
+    .save-btn { background: #28a745; color: white; padding: 10px 15px; border-radius: 8px; border: none; cursor: pointer; transition: all 0.3s ease; }
+    .save-btn:hover { background: #218838; }
+    .nav-links { margin: 20px 0; display: flex; justify-content: space-around; }
 </style>
 </head>
 <body>
 <div class="card">
   <h1>Welcome, {{ username }}!</h1>
-  <p>You have successfully logged in with 2-Factor Authentication.</p>
-  <a href="/logout">Log Out</a>
+  <p>You have successfully logged in.</p>
+
+  <div class="profile-section">
+      <h4>Your Profile Info (XSS Demo)</h4>
+      <div class="profile-info">
+          {{ profile_info | safe }}
+      </div>
+      <input type="text" id="profile-input" placeholder="Enter new info (or XSS payload)">
+      <button class="save-btn" onclick="saveProfile()">Save</button>
+  </div>
+
+  <div class="nav-links">
+      <a href="/security">Manage Recovery Codes</a>
+      <a href="/scan">Log in Another Device (QR)</a>
+  </div>
+  
+  <a href="/logout" class="logout-btn">Log Out</a>
 </div>
+
+<script>
+    async function saveProfile() {
+        const info = document.getElementById('profile-input').value;
+        const res = await fetch('/api/save-profile', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ info: info })
+        });
+        if (res.ok) {
+            // Tải lại trang để thấy profile mới (và kích hoạt XSS)
+            window.location.reload();
+        } else {
+            alert('Failed to save profile.');
+        }
+    }
+</script>
 </body>
 </html>

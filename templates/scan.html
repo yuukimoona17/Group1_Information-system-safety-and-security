@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f510.svg">
+<meta charset="UTF-8">
+<title>Scan QR Code</title>
+<script src="https://cdn.jsdelivr.net/npm/jsrsasign@10.8.6/lib/jsrsasign-all-min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+    body {font-family: 'Poppins', Arial, sans-serif; background: #f0f2f5; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;}
+    .card {background: #ffffff; border-radius: 12px; padding: 40px; width: 380px; text-align: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);}
+    h2 {margin-top: 0; color: #333; font-weight: 600;}
+    p { color: #555; }
+    textarea {width: calc(100% - 24px); height: 100px; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;}
+    button {background: #007bff; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; margin-top: 10px; width: 100%; font-size: 16px; font-weight: 500; transition: all 0.3s ease-out;}
+    #message { font-weight: 500; margin-top: 15px; }
+</style>
+</head>
+<body>
+<div class="card">
+    <h2>Scan to Log In</h2>
+    <p>Simulate scanning by pasting the QR code content below (from the other device).</p>
+    
+    <textarea id="qr-content" placeholder="Paste QR content here (e.g., qr_session_id:challenge)"></textarea>
+    <button onclick="submitScan()">Approve Login</button>
+    
+    <p id="message"></p>
+    <p style="margin-top: 20px;"><a href="/dashboard">Back to Dashboard</a></p>
+</div>
+
+<script>
+    const USERNAME = {{ username|tojson }};
+
+    function createSignature(privateKeyPEM, challenge) {
+        const prv = KEYUTIL.getKey(privateKeyPEM);
+        const sig = new KJUR.crypto.Signature({"alg":"SHA256withRSA"});
+        sig.init(prv);
+        sig.updateString(challenge);
+        const signatureHex = sig.sign();
+        const rawSignature = signatureHex.match(/\w{2}/g).map(byte => String.fromCharCode(parseInt(byte, 16))).join('');
+        return btoa(rawSignature);
+    }
+
+    async function submitScan() {
+        const msgEl = document.getElementById('message');
+        const content = document.getElementById('qr-content').value.trim();
+        
+        let qr_session_id, challenge;
+        try {
+            [qr_session_id, challenge] = content.split(':');
+            if (!qr_session_id || !challenge) throw new Error();
+        } catch(e) {
+            msgEl.textContent = 'Invalid QR content format.';
+            msgEl.style.color = 'red';
+            return;
+        }
+
+        const privateKeyPEM = localStorage.getItem(`privateKey_${USERNAME}`);
+        if (!privateKeyPEM) {
+            msgEl.textContent = 'Error: This is not a trusted device.';
+            msgEl.style.color = 'red';
+            return;
+        }
+
+        msgEl.textContent = 'Signing and approving...';
+        msgEl.style.color = '#007bff';
+        
+        const signatureB64 = createSignature(privateKeyPEM, challenge);
+        
+        const res = await fetch('/api/qr-scan', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                qr_session_id: qr_session_id,
+                challenge: challenge,
+                username: USERNAME,
+                signature: signatureB64
+            })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+            msgEl.textContent = '✅ Approved! The other device can now log in.';
+            msgEl.style.color = 'green';
+        } else {
+            msgEl.textContent = `Error: ${data.message}`;
+            msgEl.style.color = 'red';
+        }
+    }
+</script>
+</body>
+</html>
